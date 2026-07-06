@@ -1,0 +1,12 @@
+# Binaries
+*.exe
+/ebot-api
+/ebotapi.exe
+
+# Local env
+.env
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
