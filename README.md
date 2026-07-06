@@ -41,18 +41,43 @@ curl -H "X-API-Key: $API_KEY" http://localhost:8080/matches
 
 ## Configuration (environment variables)
 
+The `MYSQL_*` names are the same ones the existing eBot docker-compose stack uses (`eBot-docker/.env`), so this drops into that `.env` as-is.
+
 | Var | Default | Notes |
 |-----|---------|-------|
 | `API_KEY` | — | **Required.** Shared secret for `X-API-Key`. |
 | `HTTP_ADDR` | `:8080` | Listen address. |
-| `DB_DSN` | — | Full Go MySQL DSN. Overrides the parts below. |
-| `DB_HOST` | `127.0.0.1` | |
-| `DB_PORT` | `3306` | |
-| `DB_NAME` | `ebotv3` | |
-| `DB_USER` | `root` | |
-| `DB_PASS` | _(empty)_ | |
+| `MYSQL_HOST` | `mysqldb` | Compose service name of the DB. |
+| `MYSQL_PORT` | `3306` | |
+| `MYSQL_DATABASE` | `ebotv3` | |
+| `MYSQL_USER` | `ebotv3` | |
+| `MYSQL_PASSWORD` | _(empty)_ | |
+| `DB_DSN` | — | Full Go MySQL DSN. Overrides all `MYSQL_*` above. |
 
 Copy `.env.example` to `.env` for local use.
+
+### Drop into the eBot docker-compose stack
+
+Add a service alongside `ebot-web` / `ebot-socket`. It reuses the same
+`MYSQL_*` values from the shared `.env`:
+
+```yaml
+  ebot-api:
+    image: ghcr.io/npetersendk/ebot-csgo-api:latest
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - API_KEY
+      - MYSQL_HOST=mysqldb
+      - MYSQL_DATABASE
+      - MYSQL_USER
+      - MYSQL_PASSWORD
+    depends_on:
+      - mysqldb
+```
+
+Then add `API_KEY=...` to the stack's `.env`.
 
 ## Run
 
@@ -68,7 +93,8 @@ API_KEY=devkey go run .
 docker build -t ebot-csgo-api .
 docker run --rm -p 8080:8080 \
   -e API_KEY=devkey \
-  -e DB_HOST=host.docker.internal \
+  -e MYSQL_HOST=host.docker.internal \
+  -e MYSQL_DATABASE=ebotv3 -e MYSQL_USER=ebotv3 -e MYSQL_PASSWORD=secret \
   ebot-csgo-api
 ```
 

@@ -25,16 +25,16 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("API_KEY is required")
 	}
 
-	// A full DSN wins if provided, otherwise assemble one from discrete parts.
-	// Defaults mirror eBot-CSGO-Web/config/databases.yml (mysql ebotv3 on localhost).
+	// A full DSN wins if provided, otherwise assemble one from the same MYSQL_*
+	// variables the eBot docker-compose stack already uses (see eBot-docker/.env).
 	if dsn := os.Getenv("DB_DSN"); dsn != "" {
 		c.DSN = dsn
 	} else {
-		host := env("DB_HOST", "127.0.0.1")
-		port := env("DB_PORT", "3306")
-		name := env("DB_NAME", "ebotv3")
-		user := env("DB_USER", "root")
-		pass := os.Getenv("DB_PASS")
+		host := env("MYSQL_HOST", "mysqldb")
+		port := env("MYSQL_PORT", "3306")
+		name := env("MYSQL_DATABASE", "ebotv3")
+		user := env("MYSQL_USER", "ebotv3")
+		pass := os.Getenv("MYSQL_PASSWORD")
 		c.DSN = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&loc=Local",
 			user, pass, host, port, name)
 	}
