@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 )
 
@@ -10,6 +11,13 @@ type Config struct {
 	HTTPAddr string
 	APIKey   string
 	DSN      string
+
+	// Redis carries admin commands to the bot. Empty RedisAddr disables the
+	// stop/restart endpoints; everything else still works without it.
+	RedisAddr     string
+	RedisUsername string
+	RedisPassword string
+	RedisList     string
 }
 
 // Load reads configuration from the environment. It returns an error if a
@@ -37,6 +45,15 @@ func Load() (Config, error) {
 		pass := os.Getenv("MYSQL_PASSWORD")
 		c.DSN = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&loc=Local",
 			user, pass, host, port, name)
+	}
+
+	// Defaults mirror eBot's config.ini (REDIS_*), so a sidecar deployment
+	// needs only REDIS_HOST.
+	c.RedisUsername = os.Getenv("REDIS_AUTH_USERNAME")
+	c.RedisPassword = os.Getenv("REDIS_AUTH_PASSWORD")
+	c.RedisList = env("REDIS_CHANNEL_EBOT_FROM_WS", "ebot-from-ws")
+	if host := os.Getenv("REDIS_HOST"); host != "" {
+		c.RedisAddr = net.JoinHostPort(host, env("REDIS_PORT", "6379"))
 	}
 
 	return c, nil
