@@ -13,6 +13,7 @@ import (
 	"github.com/NPetersenDK/eBot-CSGO-API/internal/api"
 	"github.com/NPetersenDK/eBot-CSGO-API/internal/config"
 	"github.com/NPetersenDK/eBot-CSGO-API/internal/db"
+	"github.com/NPetersenDK/eBot-CSGO-API/internal/ebotcmd"
 )
 
 func main() {
@@ -27,9 +28,23 @@ func main() {
 	}
 	defer database.Close()
 
+	// Optional: without Redis the API keeps working, minus live control.
+	var cmd *ebotcmd.Publisher
+	if cfg.RedisAddr != "" {
+		cmd = ebotcmd.NewPublisher(cfg.RedisAddr, cfg.RedisUsername, cfg.RedisPassword, cfg.RedisList)
+		defer cmd.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := cmd.Ping(ctx); err != nil {
+			log.Printf("WARN redis %s unreachable, live control will fail: %v", cfg.RedisAddr, err)
+		}
+		cancel()
+	} else {
+		log.Print("REDIS_HOST unset: match stop/restart disabled")
+	}
+
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           api.New(database, cfg.APIKey),
+		Handler:           api.New(database, cfg.APIKey, cmd),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
