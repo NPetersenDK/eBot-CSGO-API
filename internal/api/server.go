@@ -10,17 +10,20 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 
 	"github.com/NPetersenDK/eBot-CSGO-API/internal/docs"
+	"github.com/NPetersenDK/eBot-CSGO-API/internal/ebotcmd"
 )
 
 // Server holds shared handler dependencies.
 type Server struct {
 	db *sql.DB
+	// cmd reaches the bot for live control; nil disables those endpoints.
+	cmd *ebotcmd.Publisher
 }
 
 // New builds the HTTP router. apiKey guards every route except health, the
 // OpenAPI spec and the Swagger UI.
-func New(db *sql.DB, apiKey string) http.Handler {
-	s := &Server{db: db}
+func New(db *sql.DB, apiKey string, cmd *ebotcmd.Publisher) http.Handler {
+	s := &Server{db: db, cmd: cmd}
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -44,6 +47,11 @@ func New(db *sql.DB, apiKey string) http.Handler {
 			r.Delete("/{id}", s.deleteMatch)
 			r.Post("/{id}/start", s.startMatch)
 			r.Post("/{id}/archive", s.archiveMatch)
+
+			// Live control (see control.go).
+			r.Post("/{id}/stop", s.stopMatch)
+			r.Post("/{id}/reset", s.resetMatch)
+			r.Post("/{id}/restart", s.restartMatch)
 
 			// Granular match data (populated by the bot as the match plays).
 			r.Get("/{id}/maps", s.listMatchMaps)

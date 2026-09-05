@@ -19,7 +19,7 @@ func newTestServer(t *testing.T) http.Handler {
 		t.Fatalf("sql.Open: %v", err)
 	}
 	t.Cleanup(func() { db.Close() })
-	return New(db, "devkey")
+	return New(db, "devkey", nil)
 }
 
 func TestOpenAPISpecServed(t *testing.T) {

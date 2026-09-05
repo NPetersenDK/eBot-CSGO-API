@@ -372,10 +372,10 @@ func scanMatch(row scanner) (Match, error) {
 	var m Match
 	var (
 		seasonID, teamA, teamB, serverID, currentMap sql.NullInt64
-		teamAName, teamAFlag, teamBName, teamBFlag    sql.NullString
-		rules, mapMode, configPass, ip                sql.NullString
-		isPaused, enable                              sql.NullBool
-		startdate, createdAt                          sql.NullTime
+		teamAName, teamAFlag, teamBName, teamBFlag   sql.NullString
+		rules, mapMode, configPass, ip               sql.NullString
+		isPaused, enable                             sql.NullBool
+		startdate, createdAt                         sql.NullTime
 	)
 	err := row.Scan(&m.ID, &seasonID, &teamA, &teamAName, &teamAFlag,
 		&teamB, &teamBName, &teamBFlag, &m.Status, &isPaused,

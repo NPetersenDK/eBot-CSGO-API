@@ -2,7 +2,9 @@
 
 A small Go REST API that runs **alongside** the legacy [eBot-CSGO-Web](../eBot-CSGO-Web) Symfony 1.4 panel, over the **same MySQL database** (`ebotv3`). It exists to create and manage matches programmatically — something the Symfony UI makes impractical.
 
-Why this is safe to drop in: in eBot, **match creation is a pure database write**. The separate nodeJS bot polls the DB and picks up any enabled match with `status = STARTING`. So this API only touches MySQL — no changes to the panel or the bot are required. (Live in-game control — pause, knife, rcon — still flows through the panel's socket.io path and is intentionally out of scope here.)
+Why this is safe to drop in: in eBot, **match creation is a pure database write**. The separate nodeJS bot polls the DB and picks up any enabled match with `status = STARTING`. So this API only touches MySQL — no changes to the panel or the bot are required. (Live in-game control — pause, knife, rcon — still flows through the panel's socket.io path and is out of scope here.)
+
+**Stopping is the exception.** A running match lives in the bot's memory with an RCON connection, so no database write can end it: only the bot's own `adminStop()` restarts the game and releases the server. The panel triggers that by AES-encrypting `"<id> stop <ip:port>"` with the match's `config_authkey` and emitting it over socket.io — where `websocket_server.mjs` does nothing but `LPUSH` it onto a Redis list. So `/matches/{id}/stop` writes that same payload straight to Redis: the bot cannot tell the difference, and no socket.io hop is needed. Set `REDIS_HOST` to enable it; without it the endpoint returns 503 and the rest of the API is unaffected. Reset and restart-on-the-same-server are plain SQL, mirroring `executeReset` and `executeStartRetry` in the panel.
 
 ## Endpoints
 
@@ -14,6 +16,9 @@ Why this is safe to drop in: in eBot, **match creation is a pure database write*
 | GET  | `/matches/{id}` | Get one match |
 | DELETE | `/matches/{id}` | Delete a match (children cascade) |
 | POST | `/matches/{id}/start` | Assign a free server and start (status=STARTING) |
+| POST | `/matches/{id}/stop` | Stop a running match (`?restart=false` for the plain stop) |
+| POST | `/matches/{id}/reset` | Clear scores and round history on a stopped match |
+| POST | `/matches/{id}/restart` | Stop, reset and start again on the same server |
 | POST | `/matches/{id}/archive` | Archive a match |
 | GET  | `/matches/{id}/maps` | Maps + live score per map |
 | GET  | `/matches/{id}/players` | Scoreboard (`?map_id=`) |
@@ -53,6 +58,11 @@ The `MYSQL_*` names are the same ones the existing eBot docker-compose stack use
 | `MYSQL_USER` | `ebotv3` | |
 | `MYSQL_PASSWORD` | _(empty)_ | |
 | `DB_DSN` | — | Full Go MySQL DSN. Overrides all `MYSQL_*` above. |
+| `REDIS_HOST` | — | Redis the bot reads commands from. Unset disables stop/restart. |
+| `REDIS_PORT` | `6379` | |
+| `REDIS_AUTH_USERNAME` | _(empty)_ | |
+| `REDIS_AUTH_PASSWORD` | _(empty)_ | |
+| `REDIS_CHANNEL_EBOT_FROM_WS` | `ebot-from-ws` | Must match eBot's `config.ini`. |
 
 Copy `.env.example` to `.env` for local use.
 
