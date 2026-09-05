@@ -102,6 +102,53 @@
         }
       }
     },
+    "/matches/{id}/stop": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }],
+      "post": {
+        "tags": ["matches"],
+        "summary": "Stop a running match",
+        "description": "Sends eBot's admin stop command to the bot over Redis and waits until it releases the server. Defaults to the panel's \"Stop with Restart\": the game is restarted, enable goes to 0 and the match stays resettable. Pass restart=false for the plain stop. Requires REDIS_HOST.",
+        "parameters": [{ "name": "restart", "in": "query", "required": false, "schema": { "type": "boolean", "default": true } }],
+        "responses": {
+          "200": { "description": "Updated match", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Match" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "description": "Match is not running, or has no server" },
+          "503": { "description": "Live control disabled (no REDIS_HOST)" },
+          "504": { "description": "The bot did not release the match in time" }
+        }
+      }
+    },
+    "/matches/{id}/reset": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }],
+      "post": {
+        "tags": ["matches"],
+        "summary": "Reset a stopped match",
+        "description": "Clears scores, per-map results and round history, and sets status back to 0. Database only; the match must be stopped and not finished.",
+        "responses": {
+          "200": { "description": "Updated match", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Match" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "description": "Only a stopped, unfinished match can be reset" }
+        }
+      }
+    },
+    "/matches/{id}/restart": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }],
+      "post": {
+        "tags": ["matches"],
+        "summary": "Stop, reset and start a match again",
+        "description": "The whole play-it-again sequence in one call, on the same server. Sequenced server-side so a dropped connection cannot leave the match half-restarted. Requires REDIS_HOST.",
+        "responses": {
+          "200": { "description": "Updated match", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Match" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "description": "Another match is running on that server" },
+          "503": { "description": "Live control disabled (no REDIS_HOST)" },
+          "504": { "description": "The bot did not release the match in time" }
+        }
+      }
+    },
     "/matches/{id}/maps": {
       "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }],
       "get": {
