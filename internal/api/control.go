@@ -205,7 +205,7 @@ func (s *Server) restartMatch(w http.ResponseWriter, r *http.Request) {
 		s.dbError(w, err)
 		return
 	}
-	if err := s.startRetry(r.Context(), id); err != nil {
+	if err := s.startAfterReset(r.Context(), id); err != nil {
 		if errors.Is(err, errServerBusy) {
 			writeError(w, http.StatusConflict, err.Error())
 			return
@@ -218,9 +218,14 @@ func (s *Server) restartMatch(w http.ResponseWriter, r *http.Request) {
 
 var errServerBusy = errors.New("another match is running on that server")
 
-// startRetry re-enables a stopped match on its existing server, mirroring
-// executeStartRetry. Unlike /start it never reassigns a server.
-func (s *Server) startRetry(ctx context.Context, id int64) error {
+// startAfterReset re-arms a match on the server it already has.
+//
+// Deliberately not the panel's executeStartRetry: that one only flips enable,
+// because it resumes a match that still carries its old status. After a reset
+// the status is 0, and the bot's pickup query is `status >= STARTING AND
+// enable = 1` - so leaving it at 0 would produce a match the bot never adopts
+// while the panel, seeing enable = 1, offers live controls that reach nobody.
+func (s *Server) startAfterReset(ctx context.Context, id int64) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -246,7 +251,8 @@ func (s *Server) startRetry(ctx context.Context, id int64) error {
 	}
 
 	if _, err := tx.ExecContext(ctx,
-		"UPDATE matchs SET enable = 1, config_authkey = ? WHERE id = ?", genAuthkey(), id); err != nil {
+		"UPDATE matchs SET enable = 1, status = ?, config_authkey = ? WHERE id = ?",
+		StatusStarting, genAuthkey(), id); err != nil {
 		return err
 	}
 	return tx.Commit()
