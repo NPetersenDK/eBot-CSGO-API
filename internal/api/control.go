@@ -35,26 +35,34 @@ func (s *Server) controlEnabled(w http.ResponseWriter) bool {
 // matchServer returns the address the bot registered the match under and the
 // authkey it decrypts commands with. The address comes from servers.ip, which
 // is what keys the bot's authkey map.
-func (s *Server) matchServer(ctx context.Context, id int64) (ip, authkey string, enabled bool, err error) {
+func (s *Server) matchServer(ctx context.Context, id int64) (ip, authkey string, enabled bool, status int, err error) {
 	var (
 		serverIP sql.NullString
 		key      sql.NullString
 		enable   int
 	)
-	err = s.db.QueryRowContext(ctx, `SELECT sv.ip, m.config_authkey, m.enable
+	err = s.db.QueryRowContext(ctx, `SELECT sv.ip, m.config_authkey, m.enable, m.status
 		FROM matchs m LEFT JOIN servers sv ON sv.id = m.server_id
-		WHERE m.id = ?`, id).Scan(&serverIP, &key, &enable)
+		WHERE m.id = ?`, id).Scan(&serverIP, &key, &enable, &status)
 	if err != nil {
-		return "", "", false, err
+		return "", "", false, 0, err
 	}
-	return serverIP.String, key.String, enable == 1, nil
+	return serverIP.String, key.String, enable == 1, status, nil
 }
 
 // sendStop pushes the command and waits for the bot to clear enable, which is
 // how it reports that it let the server go.
 func (s *Server) sendStop(ctx context.Context, id int64, action string) error {
-	ip, authkey, _, err := s.matchServer(ctx, id)
+	ip, authkey, _, status, err := s.matchServer(ctx, id)
 	if err != nil {
+		return err
+	}
+	// Below STARTING the bot's pickup query never matched, so no bot holds this
+	// match and no command would ever be answered. Clear enable ourselves
+	// instead of waiting out the timeout - this is also what rescues a row left
+	// enabled-but-not-started by some other writer.
+	if status < StatusStarting {
+		_, err := s.db.ExecContext(ctx, "UPDATE matchs SET enable = 0 WHERE id = ?", id)
 		return err
 	}
 	if ip == "" {
@@ -96,7 +104,7 @@ func (s *Server) stopMatch(w http.ResponseWriter, r *http.Request) {
 	if !ok || !s.controlEnabled(w) {
 		return
 	}
-	_, _, live, err := s.matchServer(r.Context(), id)
+	_, _, live, _, err := s.matchServer(r.Context(), id)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "match not found")
 		return
@@ -185,7 +193,7 @@ func (s *Server) restartMatch(w http.ResponseWriter, r *http.Request) {
 	if !ok || !s.controlEnabled(w) {
 		return
 	}
-	_, _, live, err := s.matchServer(r.Context(), id)
+	_, _, live, _, err := s.matchServer(r.Context(), id)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "match not found")
 		return
